@@ -16,7 +16,8 @@ defineProps({
       :key="product.id"
       cols="12"
       sm="6"
-      xl="4"
+      md="4"
+      lg="4"
     >
       <ProductCard :product="product" />
     </v-col>

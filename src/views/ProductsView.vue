@@ -22,6 +22,8 @@ const search = ref('')
 const maxPrice = ref(100)
 const onlyDiscount = ref(false)
 
+const filtersOpen = ref(false)
+
 onMounted(async () => {
   try {
     loading.value = true
@@ -67,15 +69,41 @@ const filteredProducts = computed(() => {
   })
 })
 
-const activeFiltersCount = computed(() => {
-  let count = 0
-  if (selectedCategory.value !== '') count++
-  if (selectedBrand.value !== '') count++
-  if (search.value.trim() !== '') count++
-  if (maxPrice.value !== 100) count++
-  if (onlyDiscount.value) count++
-  return count
+const activeFilters = computed(() => {
+  const list = []
+
+  if (search.value.trim()) {
+    list.push({ key: 'search', label: `Búsqueda: ${search.value}` })
+  }
+
+  if (selectedCategory.value !== '') {
+    const category = categories.value.find(c => c.id === Number(selectedCategory.value))
+    if (category) list.push({ key: 'category', label: category.name })
+  }
+
+  if (selectedBrand.value !== '') {
+    const brand = brands.value.find(b => b.id === Number(selectedBrand.value))
+    if (brand) list.push({ key: 'brand', label: brand.name })
+  }
+
+  if (maxPrice.value !== 100) {
+    list.push({ key: 'price', label: `Hasta ${maxPrice.value} €` })
+  }
+
+  if (onlyDiscount.value) {
+    list.push({ key: 'discount', label: 'Solo ofertas' })
+  }
+
+  return list
 })
+
+function clearOneFilter(key) {
+  if (key === 'search') search.value = ''
+  if (key === 'category') selectedCategory.value = ''
+  if (key === 'brand') selectedBrand.value = ''
+  if (key === 'price') maxPrice.value = 100
+  if (key === 'discount') onlyDiscount.value = false
+}
 
 function resetFilters() {
   selectedCategory.value = ''
@@ -87,17 +115,94 @@ function resetFilters() {
 </script>
 
 <template>
-  <v-container class="py-10">
-    <section class="catalog-hero mb-8">
-      <p class="catalog-kicker">GEX STORE</p>
-      <h1 class="catalog-title">Catálogo de videojuegos</h1>
-      <p class="catalog-text">
-        Busca, filtra y descubre títulos por categoría, marca, precio y promociones.
-      </p>
+  <v-container fluid class="products-page py-8 px-6 px-md-8">
+    <section class="catalog-hero mb-5">
+      <div class="catalog-hero__content">
+        <p class="catalog-kicker">GEX STORE</p>
+        <h1 class="catalog-title">Catálogo de videojuegos</h1>
+        <p class="catalog-text">
+          Encuentra títulos por búsqueda, categoría, marca, precio y promociones.
+        </p>
+      </div>
+
+      <div class="catalog-hero__stats">
+        <div class="hero-stat">
+          <span class="hero-stat__label">Resultados</span>
+          <strong class="hero-stat__value">{{ filteredProducts.length }}</strong>
+        </div>
+      </div>
     </section>
 
-    <v-row class="catalog-layout">
-      <v-col cols="12" md="3" lg="3">
+    <div class="results-toolbar mb-5">
+      <div class="results-toolbar__left">
+        <p class="results-text">
+          Mostrando <strong>{{ filteredProducts.length }}</strong> productos
+        </p>
+      </div>
+
+      <div class="toolbar-actions">
+        <v-btn
+          color="primary"
+          prepend-icon="mdi-filter-variant"
+          rounded="pill"
+          class="toolbar-btn"
+          @click="filtersOpen = true"
+        >
+          Filtros
+        </v-btn>
+
+        <v-btn
+          variant="tonal"
+          color="secondary"
+          rounded="pill"
+          class="toolbar-btn"
+          @click="resetFilters"
+        >
+          Limpiar
+        </v-btn>
+      </div>
+    </div>
+
+    <div v-if="activeFilters.length" class="active-filters mb-5">
+      <v-chip
+        v-for="filter in activeFilters"
+        :key="filter.key"
+        color="primary"
+        variant="tonal"
+        closable
+        rounded="pill"
+        @click:close="clearOneFilter(filter.key)"
+      >
+        {{ filter.label }}
+      </v-chip>
+    </div>
+
+    <LoadingState v-if="loading" />
+    <ErrorState v-else-if="error" :message="error" />
+    <EmptyState
+      v-else-if="filteredProducts.length === 0"
+      title="No se han encontrado productos"
+      text="Prueba a cambiar la búsqueda o los filtros."
+    />
+    <ProductGrid
+      v-else
+      :products="filteredProducts"
+    />
+
+    <v-navigation-drawer
+      v-model="filtersOpen"
+      location="right"
+      temporary
+      width="360"
+    >
+      <div class="pa-4">
+        <div class="drawer-head mb-4">
+          <h3 class="text-h6 drawer-title">Filtros</h3>
+          <v-btn icon variant="text" @click="filtersOpen = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </div>
+
         <SideMenu
           :categories="categories"
           :brands="brands"
@@ -113,50 +218,59 @@ function resetFilters() {
           @update:onlyDiscount="onlyDiscount = $event"
           @reset="resetFilters"
         />
-      </v-col>
-
-      <v-col cols="12" md="9" lg="9">
-        <div class="results-panel mb-6">
-          <div class="results-head">
-            <div>
-              <p class="results-kicker">LISTADO</p>
-              <h2 class="results-title">Resultados disponibles</h2>
-              <p class="results-text">
-                Mostrando <strong>{{ filteredProducts.length }}</strong> producto<span v-if="filteredProducts.length !== 1">s</span>
-              </p>
-            </div>
-
-            <div class="results-stats">
-              <v-chip color="primary" variant="flat" size="large">
-                {{ activeFiltersCount }} filtro<span v-if="activeFiltersCount !== 1">s</span> activo<span v-if="activeFiltersCount !== 1">s</span>
-              </v-chip>
-            </div>
-          </div>
-        </div>
-
-        <LoadingState v-if="loading" />
-        <ErrorState v-else-if="error" :message="error" />
-        <EmptyState
-          v-else-if="filteredProducts.length === 0"
-          title="No se han encontrado productos"
-          text="Prueba con otros filtros o una búsqueda diferente."
-        />
-        <ProductGrid
-          v-else
-          :products="filteredProducts"
-        />
-      </v-col>
-    </v-row>
+      </div>
+    </v-navigation-drawer>
   </v-container>
 </template>
 
 <style scoped>
+.products-page {
+  max-width: 1720px;
+  margin: 0 auto;
+}
+
 .catalog-hero {
   background: linear-gradient(135deg, #1F1A40 0%, #2D2360 100%);
   border-radius: 28px;
-  padding: 42px;
+  padding: 30px 34px;
   color: #FAF9F6;
-  box-shadow: 0 20px 50px rgba(31, 26, 64, 0.12);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.catalog-hero__content {
+  flex: 1;
+  min-width: 280px;
+}
+
+.catalog-hero__stats {
+  display: flex;
+  align-items: center;
+}
+
+.hero-stat {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  padding: 14px 18px;
+  min-width: 130px;
+  backdrop-filter: blur(8px);
+}
+
+.hero-stat__label {
+  display: block;
+  color: #d9d0f6;
+  font-size: 0.88rem;
+  margin-bottom: 4px;
+}
+
+.hero-stat__value {
+  color: #ffffff;
+  font-size: 1.4rem;
+  font-weight: 800;
 }
 
 .catalog-kicker {
@@ -168,70 +282,75 @@ function resetFilters() {
 
 .catalog-title {
   color: #FAF9F6;
-  font-size: 2.7rem;
+  font-size: 2.35rem;
   line-height: 1.08;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .catalog-text {
   color: #f0ebfb;
   max-width: 760px;
-  font-size: 1.05rem;
+  margin-bottom: 0;
+  line-height: 1.65;
 }
 
-.catalog-layout {
-  align-items: start;
-}
-
-.results-panel {
-  background: #ffffff;
-  border-radius: 24px;
-  padding: 24px 28px;
-  box-shadow: 0 12px 30px rgba(20, 20, 40, 0.06);
+.results-toolbar {
+  background: #fff;
+  border-radius: 20px;
+  padding: 16px 20px;
+  box-shadow: 0 10px 24px rgba(20, 20, 40, 0.05);
   border: 1px solid rgba(109, 59, 217, 0.06);
-}
-
-.results-head {
   display: flex;
   justify-content: space-between;
-  align-items: end;
-  gap: 20px;
+  align-items: center;
+  gap: 18px;
   flex-wrap: wrap;
 }
 
-.results-kicker {
-  color: #6D3BD9;
-  font-weight: 700;
-  letter-spacing: 1.2px;
-  margin-bottom: 8px;
-}
-
-.results-title {
-  margin-bottom: 8px;
-  color: #1F1A40;
-}
-
-.results-text {
-  color: #666;
-  margin-bottom: 0;
-}
-
-.results-stats {
+.results-toolbar__left {
   display: flex;
   align-items: center;
 }
 
-@media (max-width: 900px) {
+.results-text {
+  color: #555;
+  margin: 0;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.toolbar-btn {
+  font-weight: 700;
+}
+
+.active-filters {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.drawer-title {
+  color: #1F1A40;
+  font-weight: 800;
+}
+
+@media (max-width: 960px) {
   .catalog-title {
-    font-size: 2.1rem;
+    font-size: 2rem;
   }
 
   .catalog-hero {
-    padding: 28px;
-  }
-
-  .results-panel {
-    padding: 20px;
+    padding: 24px;
   }
 }
 </style>
